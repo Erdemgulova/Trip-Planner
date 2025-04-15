@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trip Planner Calendar</title>
+  <title>Individual and Shared Trip Calendars</title>
   <style>
     body {
       font-family: sans-serif;
@@ -12,85 +12,51 @@
     }
     h1 {
       text-align: center;
-    }
-    .month-container {
       margin-bottom: 40px;
     }
-    .month-title {
+    .calendar-section {
+      margin-bottom: 50px;
+    }
+    .calendar-title {
       text-align: center;
       font-size: 1.5em;
       margin-bottom: 10px;
     }
-    .weekdays {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      max-width: 700px;
-      margin: 0 auto 10px;
-      text-align: center;
-      font-weight: bold;
-    }
     .calendar {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 10px;
       max-width: 700px;
-      margin: 0 auto;
+      margin: 0 auto 20px;
+      gap: 5px;
     }
     .day {
       background: white;
       border: 1px solid #ccc;
       padding: 10px;
-      text-align: center;
       height: 100px;
-      position: relative;
+      text-align: center;
     }
-    .date-number {
+    .preferred {
+      background-color: blue;
+      color: white;
+    }
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: center;
       font-weight: bold;
       margin-bottom: 5px;
     }
-    .dots {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 5px;
-      margin-top: 5px;
-    }
-    .dot {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      font-size: 12px;
-      color: white;
-      text-align: center;
-      line-height: 20px;
-      cursor: pointer;
-    }
-    .legend {
-      max-width: 700px;
-      margin: 20px auto;
-      display: flex;
-      justify-content: space-around;
-    }
-    .person {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .status-preferred { background-color: blue; }
-    .status-unavailable { background-color: red; }
-    .status-neutral { background-color: gray; }
   </style>
 </head>
 <body>
-  <h1>Trip Planner Calendar – 2025</h1>
-  <div class="legend">
-    <div class="person"><div class="dot status-preferred"></div> Preferred</div>
-    <div class="person"><div class="dot status-unavailable"></div> Not Available</div>
-    <div class="person"><div class="dot status-neutral"></div> Neutral</div>
-  </div>
-  <div id="all-months"></div>
+  <h1>Trip Availability – 2025</h1>
+  <div id="calendars"></div>
+
   <script>
-    const names = ['Erdem', 'Derek', 'Val', 'Steph'];
+    const people = ['Erdem', 'Derek', 'Val', 'Steph'];
     const months = [
       { name: 'May', days: 31, startDay: 3 },
       { name: 'June', days: 30, startDay: 6 },
@@ -103,9 +69,10 @@
     ];
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const year = 2025;
-    const allMonthsDiv = document.getElementById('all-months');
+
     let data = {};
     const sheetUrl = "https://script.google.com/macros/s/AKfycbz7kr3uZghiuJfTjLZFNXWXRMQpruXajIxAzBZSANy8wuySAASHyeVmzITEGXU4jrrxvQ/exec";
+
     async function fetchData() {
       const res = await fetch(sheetUrl);
       const raw = await res.json();
@@ -119,80 +86,66 @@
         });
       });
     }
-    async function postData() {
-      const formatted = Object.entries(data).map(([date, entries]) => {
-        const row = { Date: date };
-        for (const name of names) row[name] = entries[name] || 'neutral';
-        row.row = Object.keys(data).indexOf(date);
-        return row;
-      });
-      await fetch(sheetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formatted)
-      });
-    }
-    function createDay(monthIdx, dateNum) {
-      const dateKey = `${year}-${String(monthIdx + 5).padStart(2, '0')}-${String(dateNum).padStart(2, '0')}`;
-      const dayEl = document.createElement('div');
-      dayEl.className = 'day';
-      const num = document.createElement('div');
-      num.className = 'date-number';
-      num.textContent = dateNum;
-      dayEl.appendChild(num);
-      const dots = document.createElement('div');
-      dots.className = 'dots';
-      names.forEach(name => {
-        const status = data[dateKey]?.[name] || 'neutral';
-        const dot = document.createElement('div');
-        dot.className = `dot status-${status}`;
-        dot.textContent = name[0];
-        dot.title = `${name}: ${status}`;
-        dot.onclick = async () => {
-          const statuses = ['neutral', 'preferred', 'unavailable'];
-          const current = statuses.indexOf(data[dateKey]?.[name] || 'neutral');
-          const next = (current + 1) % statuses.length;
-          if (!data[dateKey]) data[dateKey] = {};
-          data[dateKey][name] = statuses[next];
-          await postData();
-          renderCalendar();
-        };
-        dots.appendChild(dot);
-      });
-      dayEl.appendChild(dots);
-      return dayEl;
-    }
-    function renderCalendar() {
-      allMonthsDiv.innerHTML = '';
+
+    function createCalendar(name, highlightShared = false) {
+      const section = document.createElement('div');
+      section.className = 'calendar-section';
+
+      const title = document.createElement('div');
+      title.className = 'calendar-title';
+      title.textContent = name;
+      section.appendChild(title);
+
       months.forEach((month, idx) => {
-        const container = document.createElement('div');
-        container.className = 'month-container';
-        const title = document.createElement('div');
-        title.className = 'month-title';
-        title.textContent = `${month.name} ${year}`;
-        container.appendChild(title);
-        const weekHeader = document.createElement('div');
-        weekHeader.className = 'weekdays';
-        weekdays.forEach(day => {
-          const dayEl = document.createElement('div');
-          dayEl.textContent = day;
-          weekHeader.appendChild(dayEl);
+        const weekRow = document.createElement('div');
+        weekRow.className = 'weekdays';
+        weekdays.forEach(wd => {
+          const w = document.createElement('div');
+          w.textContent = wd;
+          weekRow.appendChild(w);
         });
-        container.appendChild(weekHeader);
-        const grid = document.createElement('div');
-        grid.className = 'calendar';
+        section.appendChild(weekRow);
+
+        const calendar = document.createElement('div');
+        calendar.className = 'calendar';
+
         for (let i = 0; i < (month.startDay + 6) % 7; i++) {
           const empty = document.createElement('div');
-          grid.appendChild(empty);
+          calendar.appendChild(empty);
         }
+
         for (let i = 1; i <= month.days; i++) {
-          grid.appendChild(createDay(idx, i));
+          const dateKey = `${year}-${String(idx + 5).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+          const day = document.createElement('div');
+          day.className = 'day';
+          day.textContent = i;
+
+          if (highlightShared) {
+            const allPreferred = people.every(person => data[dateKey]?.[person] === 'preferred');
+            if (allPreferred) day.classList.add('preferred');
+          } else {
+            if (data[dateKey]?.[name] === 'preferred') day.classList.add('preferred');
+          }
+
+          calendar.appendChild(day);
         }
-        container.appendChild(grid);
-        allMonthsDiv.appendChild(container);
+
+        section.appendChild(calendar);
       });
+
+      return section;
     }
-    fetchData().then(renderCalendar);
+
+    async function render() {
+      await fetchData();
+      const container = document.getElementById('calendars');
+      people.forEach(name => {
+        container.appendChild(createCalendar(name));
+      });
+      container.appendChild(createCalendar("All Preferred Dates", true));
+    }
+
+    render();
   </script>
 </body>
 </html>
