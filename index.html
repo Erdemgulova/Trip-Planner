@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trip Planner Calendar</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f7f7f7;
+    }
+    h1 {
+      text-align: center;
+    }
+    .month-container {
+      margin-bottom: 40px;
+    }
+    .month-title {
+      text-align: center;
+      font-size: 1.5em;
+      margin-bottom: 10px;
+    }
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      max-width: 700px;
+      margin: 0 auto 10px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .day {
+      background: white;
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+      height: 100px;
+      position: relative;
+    }
+    .date-number {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .dots {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 5px;
+    }
+    .dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 12px;
+      color: white;
+      text-align: center;
+      line-height: 20px;
+      cursor: pointer;
+    }
+    .legend {
+      max-width: 700px;
+      margin: 20px auto;
+      display: flex;
+      justify-content: space-around;
+    }
+    .person {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-preferred { background-color: blue; }
+    .status-unavailable { background-color: red; }
+    .status-neutral { background-color: gray; }
+  </style>
+</head>
+<body>
+  <h1>Trip Planner Calendar – 2025</h1>
+  <div class="legend">
+    <div class="person"><div class="dot status-preferred"></div> Preferred</div>
+    <div class="person"><div class="dot status-unavailable"></div> Not Available</div>
+    <div class="person"><div class="dot status-neutral"></div> Neutral</div>
+  </div>
+  <div id="all-months"></div>
+  <script>
+    const names = ['Erdem', 'Derek', 'Val', 'Steph'];
+    const months = [
+      { name: 'May', days: 31, startDay: 3 },
+      { name: 'June', days: 30, startDay: 6 },
+      { name: 'July', days: 31, startDay: 1 },
+      { name: 'August', days: 31, startDay: 4 },
+      { name: 'September', days: 30, startDay: 0 },
+      { name: 'October', days: 31, startDay: 2 },
+      { name: 'November', days: 30, startDay: 5 },
+      { name: 'December', days: 31, startDay: 0 }
+    ];
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const year = 2025;
+    const allMonthsDiv = document.getElementById('all-months');
+    let data = {};
+    const sheetUrl = "https://script.google.com/macros/s/AKfycbz7kr3uZghiuJfTjLZFNXWXRMQpruXajIxAzBZSANy8wuySAASHyeVmzITEGXU4jrrxvQ/exec";
+    async function fetchData() {
+      const res = await fetch(sheetUrl);
+      const raw = await res.json();
+      const [header, ...rows] = raw;
+      data = {};
+      rows.forEach(row => {
+        const date = row[0];
+        data[date] = {};
+        header.slice(1).forEach((name, i) => {
+          data[date][name] = row[i + 1] || 'neutral';
+        });
+      });
+    }
+    async function postData() {
+      const formatted = Object.entries(data).map(([date, entries]) => {
+        const row = { Date: date };
+        for (const name of names) row[name] = entries[name] || 'neutral';
+        row.row = Object.keys(data).indexOf(date);
+        return row;
+      });
+      await fetch(sheetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formatted)
+      });
+    }
+    function createDay(monthIdx, dateNum) {
+      const dateKey = `${year}-${String(monthIdx + 5).padStart(2, '0')}-${String(dateNum).padStart(2, '0')}`;
+      const dayEl = document.createElement('div');
+      dayEl.className = 'day';
+      const num = document.createElement('div');
+      num.className = 'date-number';
+      num.textContent = dateNum;
+      dayEl.appendChild(num);
+      const dots = document.createElement('div');
+      dots.className = 'dots';
+      names.forEach(name => {
+        const status = data[dateKey]?.[name] || 'neutral';
+        const dot = document.createElement('div');
+        dot.className = `dot status-${status}`;
+        dot.textContent = name[0];
+        dot.title = `${name}: ${status}`;
+        dot.onclick = async () => {
+          const statuses = ['neutral', 'preferred', 'unavailable'];
+          const current = statuses.indexOf(data[dateKey]?.[name] || 'neutral');
+          const next = (current + 1) % statuses.length;
+          if (!data[dateKey]) data[dateKey] = {};
+          data[dateKey][name] = statuses[next];
+          await postData();
+          renderCalendar();
+        };
+        dots.appendChild(dot);
+      });
+      dayEl.appendChild(dots);
+      return dayEl;
+    }
+    function renderCalendar() {
+      allMonthsDiv.innerHTML = '';
+      months.forEach((month, idx) => {
+        const container = document.createElement('div');
+        container.className = 'month-container';
+        const title = document.createElement('div');
+        title.className = 'month-title';
+        title.textContent = `${month.name} ${year}`;
+        container.appendChild(title);
+        const weekHeader = document.createElement('div');
+        weekHeader.className = 'weekdays';
+        weekdays.forEach(day => {
+          const dayEl = document.createElement('div');
+          dayEl.textContent = day;
+          weekHeader.appendChild(dayEl);
+        });
+        container.appendChild(weekHeader);
+        const grid = document.createElement('div');
+        grid.className = 'calendar';
+        for (let i = 0; i < (month.startDay + 6) % 7; i++) {
+          const empty = document.createElement('div');
+          grid.appendChild(empty);
+        }
+        for (let i = 1; i <= month.days; i++) {
+          grid.appendChild(createDay(idx, i));
+        }
+        container.appendChild(grid);
+        allMonthsDiv.appendChild(container);
+      });
+    }
+    fetchData().then(renderCalendar);
+  </script>
+</body>
+</html>
